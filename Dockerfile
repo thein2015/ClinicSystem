@@ -2,10 +2,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Project ဖိုင်တွေအားလုံးကို Docker ထဲ အရင် copy ကူးပါ
+# ဖိုင်များအားလုံးကို copy ကူးပါ
 COPY . .
 
-# Solution file (.sln) ရှိရင် အဲဒါကို restore လုပ်ပါ၊ မရှိရင် Web project ကိုပဲ restore လုပ်ပါ
+# Solution file ရှိလျှင် Restore လုပ်ပါ၊ မရှိလျှင် စနစ်အလိုက် ရှာဖွေစေပါ
+# အကယ်၍ error ထပ်တက်ပါက အောက်ပါအတိုင်း ပြင်ပါ
 RUN dotnet restore "ClinicSystem.Web/ClinicSystem.Web.csproj"
 
 # Build လုပ်ပါ
