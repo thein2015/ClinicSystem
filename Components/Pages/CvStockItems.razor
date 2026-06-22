@@ -1,0 +1,177 @@
+﻿@page "/stock-section"
+@layout MainLayout
+@rendermode InteractiveServer
+@using ClinicSystem.Web.Controller
+@using ClinicSystem.Web.Models
+@using ClinicSystem.Web.Services
+@inject StockService StockService
+
+<div class="container mt-4">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">Stock Management</h4>
+        </div>
+        <div class="card-body">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+            }
+
+            <div class="btn-group mb-4">
+                <button class="btn btn-outline-primary" @onclick='() => LoadData("StockBalance")'>Balance</button>
+                <button class="btn btn-outline-primary" @onclick='() => LoadData("LowStock")'>Low Stock</button>
+                <button class="btn btn-outline-primary" @onclick='() => LoadData("StockPrices")'>Prices</button>
+                <button class="btn btn-outline-primary" @onclick='() => LoadData("ServicePrices")'>Service</button>
+            </div>
+
+            @if (isLoading)
+            {
+                <div class="d-flex justify-content-center p-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            }
+            else if (stockList != null)
+            {
+                <div class="table-responsive">
+                    <table class="table table-bordered border-primary table-striped">
+                        <thead class="table-primary">
+                            <tr>
+                                <th>Item Name</th>
+                                @if (isPriceMode)
+                                {
+                                    <th>Normal (Pack)</th>
+                                    <th>Member (Pack)</th>
+                                    <th>Walk-in (Pack)</th>
+                                }
+                                else
+                                {
+                                    <th>Balance</th>
+                                }
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var i in stockList)
+                            {
+                                <tr>
+                                    <td>@i.ItemName</td>
+                                    @if (isPriceMode)
+                                    {
+                                        <td><strong>@i.NormalPrice.ToString("N0")</strong> <small>(@i.NormPk)</small></td>
+                                        <td><strong>@i.MemberPrice.ToString("N0")</strong> <small>(@i.MemPk)</small></td>
+                                        <td><strong>@i.WorkInPrice.ToString("N0")</strong> <small>(@i.WorkPk)</small></td>
+                                        <td><button class="btn btn-sm btn-warning" @onclick="() => OpenEditor(i)">Edit</button></td>
+                                    }
+                                    else
+                                    {
+                                        <td>@i.Balance</td>
+                                        <td>-</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@* Modal for Editing *@
+@if (showEditor && editItem != null)
+{
+    <div class="modal d-block" style="background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; z-index: 2000; width: 100%; height: 100%; overflow-y: auto;">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Price: @editItem.ItemName</h5>
+                </div>
+                <EditForm Model="editItem" OnValidSubmit="SavePrice">
+                    <div class="modal-body">
+                        <div class="row g-2">
+                            <div class="col-6"><label>Normal</label><InputNumber class="form-control" @bind-Value="editItem.NormalPrice" /></div>
+                            <div class="col-6"><label>Member</label><InputNumber class="form-control" @bind-Value="editItem.MemberPrice" /></div>
+                            <div class="col-6"><label>Work-in</label><InputNumber class="form-control" @bind-Value="editItem.WorkInPrice" /></div>
+                            @if (CurMode != "ServicePrices")
+                            {
+                                <div class="col-6"><label>Norm Pk</label><InputNumber class="form-control" @bind-Value="editItem.NormPk" /></div>
+                                <div class="col-6"><label>Mem Pk</label><InputNumber class="form-control" @bind-Value="editItem.MemPk" /></div>
+                                <div class="col-6"><label>Work Pk</label><InputNumber class="form-control" @bind-Value="editItem.WorkPk" /></div>
+                            }
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" @onclick="() => showEditor = false">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@isSaving">@(isSaving ? "Saving..." : "Save")</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<StockBalanceItem> stockList = new();
+    private bool isLoading, isPriceMode, showEditor, isSaving;
+    private string errorMessage, CurMode;
+    private StockBalanceItem editItem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData("StockBalance");
+    }
+
+    private async Task LoadData(string mode)
+    {
+        isLoading = true;
+        CurMode = mode;
+        isPriceMode = (mode == "StockPrices" || mode == "ServicePrices");
+        try
+        {
+            DBController.Keyy = "RegK_4";
+            stockList = await StockService.GetStockDataAsync(mode, "RegK_4", "CtlClinic1") ?? new();
+        }
+        catch (Exception ex) { errorMessage = ex.Message; }
+        finally
+        {
+            isLoading = false;
+            // Force the UI to refresh
+            StateHasChanged();
+        }
+    }
+
+    private void OpenEditor(StockBalanceItem item)
+    {
+        editItem = new StockBalanceItem
+            {
+                ItemId = item.ItemId,
+                ItemName = item.ItemName,
+                NormalPrice = item.NormalPrice,
+                MemberPrice = item.MemberPrice,
+                WorkInPrice = item.WorkInPrice,
+                NormPk = item.NormPk,
+                MemPk = item.MemPk,
+                WorkPk = item.WorkPk
+            };
+        showEditor = true;
+    }
+
+    private async Task SavePrice()
+    {
+        isSaving = true;
+        bool success = (CurMode == "ServicePrices")
+            ? await StockService.UpdatePricesToApiAsync(editItem.ItemId, editItem.MemberPrice, editItem.NormalPrice, editItem.WorkInPrice)
+            : await StockService.PostPriceUpdateAsync(editItem.ItemId, editItem.MemberPrice, editItem.NormalPrice, editItem.WorkInPrice, editItem.MemPk, editItem.NormPk, editItem.WorkPk);
+
+        if (success)
+        {
+            showEditor = false;
+            await LoadData(CurMode);
+        }
+        else
+        {
+            errorMessage = "Update failed.";
+        }
+        isSaving = false;
+    }
+}

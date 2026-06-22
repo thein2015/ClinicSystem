@@ -1,0 +1,113 @@
+﻿@page "/patient-section"
+@rendermode InteractiveServer
+@using ClinicSystem.Web.Models
+@using ClinicSystem.Web.Controller
+@inject DBController DbService
+@inject NavigationManager Navigation
+
+<div class="container mt-4">
+    <h3 class="mb-4 text-dark font-weight-bold">Patient Section</h3>
+
+    <div class="mb-4">
+        <div class="input-group">
+            <span class="input-group-text bg-primary text-white">🔍 Search</span>
+            <input type="text" class="form-control"
+                   placeholder="Enter Patient Name..."
+                   @bind="searchQuery"
+                   @bind:event="oninput" />
+        </div>
+        @if (!string.IsNullOrEmpty(searchQuery))
+        {
+            <small class="text-muted">Results for "<strong>@searchQuery</strong>"</small>
+        }
+    </div>
+
+    @if (patientList == null)
+    {
+        <div class="d-flex align-items-center">
+            <strong>Loading patients...</strong>
+            <div class="spinner-border ms-auto text-primary" role="status"></div>
+        </div>
+    }
+    else if (!FilteredPatients.Any())
+    {
+        <div class="alert alert-info">
+            No patients found or the waiting list is empty.
+        </div>
+    }
+    else
+    {
+        <div class="row">
+            @foreach (var patient in FilteredPatients)
+            {
+                <div class="col-md-12 mb-3">
+                    <div class="card shadow-sm" style="border-left: 5px solid #007bff;">
+                        <div class="card-body d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="text-primary font-weight-bold mb-1">@patient.PatientName</h5>
+                                <p class="mb-1 text-secondary" style="font-size: 0.9rem;">
+                                    <strong>📞 Phone:</strong> @(string.IsNullOrEmpty(patient.Telephone) ? "N/A" : patient.Telephone) |
+                                    <strong>🏠 Address:</strong> @(string.IsNullOrEmpty(patient.Address) ? "N/A" : patient.Address) |
+                                    <strong>⚧ Gender:</strong> @(string.IsNullOrEmpty(patient.Gender) ? "N/A" : patient.Gender)
+                                </p>
+                                <small class="text-muted">ID: @patient.PatientId | Age: @patient.Age</small>
+                            </div>
+                            <div>
+                                <button type="button" class="btn btn-primary btn-sm px-3" @onclick="() => ViewHistory(patient.PatientId)">
+                                    History
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<PatientWaitingRecord> patientList = null;
+
+    // Search query variable
+    private string searchQuery = "";
+
+    // Property to filter the patient list based on input
+    private IEnumerable<PatientWaitingRecord> FilteredPatients
+    {
+        get
+        {
+            if (patientList == null) return Enumerable.Empty<PatientWaitingRecord>();
+
+            if (string.IsNullOrWhiteSpace(searchQuery))
+            {
+                return patientList; // Return full list if no search term
+            }
+
+            // Filter by name (case-insensitive)
+            return patientList.Where(p => p.PatientName != null &&
+                                          p.PatientName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var response = await DbService.LoadWaitingListFromPHPAsync("TSH", 1, DBController.Keyy);
+            patientList = response ?? new List<PatientWaitingRecord>();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading patient list: {ex.Message}");
+            patientList = new List<PatientWaitingRecord>();
+        }
+    }
+
+    private void ViewHistory(int? patientId)
+    {
+        if (patientId.HasValue)
+        {
+            Navigation.NavigateTo($"/patient-history/{patientId.Value}");
+        }
+    }
+}

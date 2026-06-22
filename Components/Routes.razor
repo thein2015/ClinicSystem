@@ -1,0 +1,13 @@
+﻿<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        @* RouteView ကို ဒီလိုသီးသန့်တစ်ကြောင်းတည်း ရေးပါ *@
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(ClinicSystem.Web.Components.Pages.MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <PageTitle>Not found</PageTitle>
+        <LayoutView Layout="@typeof(ClinicSystem.Web.Components.Pages.MainLayout)">
+            <p>Welcome To Clinic System!</p>
+        </LayoutView>
+    </NotFound>
+</Router>

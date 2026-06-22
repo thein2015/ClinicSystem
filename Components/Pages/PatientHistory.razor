@@ -1,0 +1,138 @@
+﻿@page "/patient-history/{PatientId:int}"
+@rendermode InteractiveServer
+@using ClinicSystem.Web.Controller
+@using ClinicSystem.Web.Models
+@inject DBController DbService
+@inject NavigationManager Navigation
+
+<div class="container mt-4">
+    <h3>Patient History (ID: @PatientId)</h3>
+    <a href="/patient-section" class="btn btn-secondary mb-3">Back to List</a>
+
+    @if (historyList == null)
+    {
+        <p><em>Loading history...</em></p>
+    }
+    else if (!historyList.Any())
+    {
+        <p>No history found for this patient.</p>
+    }
+    else
+    {
+        <div class="history-list">
+            @foreach (var item in historyList)
+            {
+                <div class="card mb-4 shadow-sm">
+                    <div class="card-header bg-primary text-white">
+                        <strong>Date:</strong> @item.PhDate | <strong>History ID:</strong> @item.PHistoryId
+                    </div>
+                    <div class="card-body" style="white-space: pre-wrap;">
+                        @item.DisplayAllHistory
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int PatientId { get; set; }
+
+    private List<PatientHistoryItem> historyList;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await FetchHistoryFromPhpCloud(PatientId, DBController.Keyy);
+    }
+    private string uiErrorMessage = ""; // 💡 UI ပေါ်မှာ Error ပြချင်ရင် သုံးဖို့
+
+    private async Task FetchHistoryFromPhpCloud(int patientId, string clinicKey)
+    {
+        try
+        {
+            uiErrorMessage = ""; // Reset လုပ်ခြင်း
+            DBController.Dbse = "CtlClinic1";
+            using (HttpClient client = new HttpClient())
+            {
+                string url = $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/FetchPatientHistory";
+
+                var requestBody = new
+                {
+                    Keyy = clinicKey,
+                    PatientId = patientId
+                };
+
+                var options = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNamingPolicy = null // Property နာမည်တွေကို အသေးမပြောင်းဘဲ နဂိုအတိုင်း ထားခြင်း
+                    };
+
+                HttpContent content = JsonContent.Create(requestBody, options: options);
+                HttpResponseMessage response = await client.PostAsync(url, content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string jsonString = await response.Content.ReadAsStringAsync();
+                    System.Diagnostics.Debug.WriteLine($"PHP_CLOUD_RESPONSE: {jsonString}");
+
+                    var deserializeOptions = new System.Text.Json.JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        };
+
+                    var result = System.Text.Json.JsonSerializer.Deserialize<PhpHistoryResponse>(jsonString, deserializeOptions);
+
+                    if (result != null && result.Status == 0 && result.History != null && result.History.Count > 0)
+                    {
+                        // 🎯 Blazor တွင် Direct Assignment ဖြင့် ဒေတာထည့်သွင်းခြင်း
+                        historyList = result.History;
+                    }
+                    else
+                    {
+                        historyList = new List<PatientHistoryItem>();
+                        uiErrorMessage = "No medical history found for this patient.";
+                    }
+                }
+                else
+                {
+                    historyList = new List<PatientHistoryItem>();
+                    uiErrorMessage = $"Server တုံ့ပြန်မှု မှားယွင်းနေပါသည်: {response.StatusCode}";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            historyList = new List<PatientHistoryItem>();
+            uiErrorMessage = $"Unable to connect to Cloud server. Details: {ex.Message}";
+        }
+
+        StateHasChanged(); // Blazor UI ကို Refresh ဖြစ်စေရန်
+    }
+    // private async Task FetchHistoryFromPhpCloud(int patientId, string clinicKey)
+    // {
+    //     try
+    //     {
+    //         DBController.Dbse = "CtlClinic1"; 
+    //         using var client = new HttpClient();
+    //         string url = $"https:smartlivingmyanmar.com/{DBController.Dbse}/api/get/FetchPatientHistory";
+    //         var requestBody = new { Keyy = clinicKey, PatientId = patientId };
+
+    //         var response = await client.PostAsJsonAsync(url, requestBody);
+
+    //         if (response.IsSuccessStatusCode)
+    //         {
+    //             var result = await response.Content.ReadFromJsonAsync<PhpHistoryResponse>();
+    //             historyList = result?.History ?? new List<PatientHistoryItem>();
+    //         }
+    //         else
+    //         {
+    //             historyList = new List<PatientHistoryItem>();
+    //         }
+    //     }
+    //     catch
+    //     {
+    //         historyList = new List<PatientHistoryItem>();
+    //     }
+    //     StateHasChanged();
+    // }
+}

@@ -1,0 +1,13 @@
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\ClinicSystem.Web.exe
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\appsettings.Development.json
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\appsettings.json
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\ClinicSystem.Web.dll
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\ClinicSystem.Web.deps.json
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\ClinicSystem.Web.runtimeconfig.json
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\ClinicSystem.Web.pdb
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\Newtonsoft.Json.dll
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\PayPalCoreSDK.dll
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\System.Drawing.Common.dll
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\System.Security.Permissions.dll
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\ClinicSystem.Shared.dll
+D:\Control\ClinicSystem\ClinicSystem.Web\bin\Release\net9.0\publish\ClinicSystem.Shared.pdb

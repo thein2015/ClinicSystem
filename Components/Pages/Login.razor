@@ -1,0 +1,293 @@
+﻿@page "/login"
+@layout EmptyLayout
+@rendermode InteractiveServer
+@using ClinicSystem.Web.Controller
+@using Microsoft.AspNetCore.Components.Server.ProtectedBrowserStorage
+@using System.Text.Json
+@using System.Text
+@using System.Net.Http
+@inject NavigationManager Nav
+@inject ClinicSystem.Web.Components.APIService Api
+@* @inject ProtectedSessionStorage ProtectedSessionStore *@
+@inject ProtectedLocalStorage ProtectedLocalStore
+<div class="container mt-5">
+    <div class="card p-4 mx-auto shadow" style="max-width: 400px; border-radius: 16px;">
+
+        @* Error Message ပြသသည့်နေရာ *@
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-info">@errorMessage</div>
+        }
+
+        @if (isRegisterMode)
+        {
+            <h3 class="text-center fw-bold mb-2">Device Register</h3>
+            <p class="text-center text-muted small mb-4">Verify your phone number with OTP</p>
+
+            <div class="mb-3">
+                <input @bind="registerPhone" class="form-control" placeholder="Register Phone" type="tel" />
+            </div>
+
+            <button class="btn btn-secondary w-100 mb-3" @onclick="OnRequestOtpClicked">Request OTP</button>
+
+            <div class="mb-4">
+                <input @bind="regOtp" class="form-control" placeholder="Enter 6-Digit OTP" maxlength="6" />
+            </div>
+
+            <div class="row g-2">
+                <div class="col-6">
+                    <button class="btn btn-outline-secondary w-100 rounded-pill" @onclick="() => isRegisterMode = false">Cancel</button>
+                </div>
+                <div class="col-6">
+                    <button class="btn btn-primary w-100 rounded-pill" @onclick="OnSaveRegisterClicked">Save</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <h3 class="text-center fw-bold mb-4">Login</h3>
+
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input @bind="username" class="form-control" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" @bind="password" class="form-control" />
+            </div>
+
+            <button class="btn btn-primary w-100" @onclick="HandleLogin">Login</button>
+            <p class="text-center mt-3 text-muted" style="cursor:pointer;" @onclick="() => isRegisterMode = true">
+                Need to register device?
+            </p>
+        }
+    </div>
+</div>
+
+@code {
+    private bool isRegisterMode = false;
+    private string regOtp, username, password, otpNo, registerPhone, errorMessage;
+
+    private async Task OnRequestOtpClicked() => await GetOtpProcess();
+
+    private async Task OnSaveRegisterClicked() 
+    {
+        await OTPconfirm(); 
+    }
+    // public async Task<dynamic> VerifyOTP(string ownerPh, string typeName, string otp)
+    // {
+    //     URL ကို တည်ဆောက်ခြင်း
+    //     string url = $"https:smartlivingmyanmar.com/Ctrl/api/get/verifyOTP" +
+    //                  $"?OwnerPh={Uri.EscapeDataString(ownerPh)}" +
+    //                  $"&TypeName={Uri.EscapeDataString(typeName)}" +
+    //                  $"&OTP={Uri.EscapeDataString(otp)}";
+
+    //     HttpClient ကို IHttpClientFactory သို့မဟုတ် အကောင်းဆုံးအလေ့အကျင့်ဖြင့် သုံးပါ
+    //     using (var client = new HttpClient())
+    //     {
+    //         try
+    //         {
+    //             var response = await client.GetAsync(url);
+
+    //             if (response.IsSuccessStatusCode)
+    //             {
+    //                 string result = await response.Content.ReadAsStringAsync();
+    //                 return JsonConvert.DeserializeObject(result);
+    //             }
+    //             else
+    //             {
+    //                 Error တက်ရင် null ပြန်ပါ
+    //                 return null;
+    //             }
+    //         }
+    //         catch (Exception ex)
+    //         {
+    //             Console.WriteLine($"Error verifying OTP: {ex.Message}");
+    //             return null;
+    //         }
+    //     }
+    // }
+    private async Task<string> VerifyOTP(string ownerPh, string typeName, string otp)
+    {
+        using (var client = new HttpClient())
+        {
+            string url = $"https://smartlivingmyanmar.com/Ctrl/api/get/verifyOTP?OwnerPh={Uri.EscapeDataString(ownerPh)}&TypeName={Uri.EscapeDataString(typeName)}&OTP={Uri.EscapeDataString(otp)}";
+            var response = await client.GetAsync(url);
+            return await response.Content.ReadAsStringAsync();
+        }
+    }
+    protected override async Task OnInitializedAsync()
+    {
+        await checkRegNeed();
+    }
+    private bool isLoaded = false;
+
+    // ဤ method တစ်ခုတည်းကိုသာ အသုံးပြုပါ
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await checkRegNeed();
+            isLoaded = true;
+            StateHasChanged(); // UI ကို Update လုပ်ပေးရန်
+        }
+    }
+
+    private async Task checkRegNeed()
+    {
+        // 1. Storage မှ data ယူပါ
+        var keyResult = await ProtectedLocalStore.GetAsync<string>("KInf");
+        var dbResult = await ProtectedLocalStore.GetAsync<string>("DbInfo");
+
+        // 2. Success ဖြစ်မဖြစ် စစ်ဆေးပြီးမှ တန်ဖိုးယူပါ
+        string? key = keyResult.Success ? keyResult.Value : null;
+        string? dbInfo = dbResult.Success ? dbResult.Value : null;
+
+        // 3. Data ရှိမရှိ debug လုပ်ကြည့်ပါ
+        Console.WriteLine($"Key: {key}, DbInfo: {dbInfo}");
+
+        if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(dbInfo))
+        {
+            isRegisterMode = true;
+        }
+        else
+        {
+            DBController.Keyy = key;
+            DBController.Dbse = dbInfo;
+            isRegisterMode = false;
+        }
+    }
+     
+    // private async Task OTPconfirm()
+    // {
+    //     // 1. VerifyOTP API ကို ခေါ်ယူခြင်း
+    //     string response = await VerifyOTP(registerPhone, "Clinic", regOtp);
+    //     dynamic obj = JsonConvert.DeserializeObject(response);
+
+    //     // 2. Status စစ်ဆေးခြင်း
+    //     if (obj != null && obj.status == 1)
+    //     {
+    //         string key = Convert.ToString(obj.data.Keyy);
+    //         string dbInfo = Convert.ToString(obj.data.DbInfo);
+
+    //         // 3. OTP အလွတ်ပြန်လုပ်ခြင်း
+    //         await UpdateOTP("", registerPhone, "Clinic");
+
+    //         // 4. Memory တွင် သိမ်းခြင်း
+    //         DBController.Keyy = key;
+    //         DBController.Dbse = dbInfo;
+
+    //         // 5. Browser တွင် လုံခြုံစွာ သိမ်းခြင်း (SecureStorage အစား)
+    //         await ProtectedSessionStore.SetAsync("KInf", key);
+    //         await ProtectedSessionStore.SetAsync("DbInfo", dbInfo);
+
+    //         // 6. နောက်တစ်ဆင့်သွားခြင်း
+    //         checkRegNeed();
+
+    //         errorMessage = "Verification Successful!";
+    //     }
+    //     else
+    //     {
+    //         errorMessage = "Invalid OTP or Verification Failed.";
+    //     }
+    // }
+    private async Task OTPconfirm()
+    {
+        string jsonResult = await VerifyOTP(registerPhone, "Clinic", regOtp);
+
+        if (string.IsNullOrEmpty(jsonResult))
+        {
+            errorMessage = "Connection error.";
+            return;
+        }
+
+        // System.Text.Json ဖြင့် Deserialize လုပ်ခြင်း
+        using (JsonDocument doc = JsonDocument.Parse(jsonResult))
+        {
+            JsonElement root = doc.RootElement;
+
+            // status ကို စစ်ဆေးခြင်း
+            if (root.TryGetProperty("status", out JsonElement status) && status.GetInt32() == 1)
+            {
+                // data object အတွင်းမှ key နှင့် dbInfo ကို ထုတ်ယူခြင်း
+                JsonElement data = root.GetProperty("data");
+                string key = data.GetProperty("Keyy").GetString();
+                string dbInfo = data.GetProperty("DbInfo").GetString();
+
+                await UpdateOTP("", registerPhone, "Clinic");
+                await ProtectedLocalStore.SetAsync("KInf", key);
+                await ProtectedLocalStore.SetAsync("DbInfo", dbInfo);
+
+                isRegisterMode = false;
+                errorMessage = "Registered successfully!";
+            }
+            else
+            {
+                errorMessage = "Invalid OTP.";
+            }
+        }
+    }
+    private async Task HandleLogin() => Nav.NavigateTo("/main-dashboard");
+
+    public string GenerateOTPLogin(int length)
+    {
+        string _allowedChars = "0123456789";
+        var randNum = new Random();
+        var chars = new char[length];
+        for (int i = 0; i < length; i++)
+            chars[i] = _allowedChars[randNum.Next(0, _allowedChars.Length)];
+        return new string(chars);
+    }
+
+
+    public async Task<string?> UpdateOTP(string otp, string ownerPh, string typeName)
+    {
+        using (HttpClient client = new HttpClient())
+        {
+            client.Timeout = TimeSpan.FromSeconds(15);
+            var url = "https://smartlivingmyanmar.com/Ctrl/api/set/SetOTP";
+
+            var requestData = new
+            {
+                OTP = otp,
+                OwnerPh = ownerPh,
+                TypeName = typeName
+            };
+
+            try
+            {
+                // System.Text.Json ဖြင့် Serialize လုပ်ခြင်း
+                string json = JsonSerializer.Serialize(requestData);
+
+                // Argument အမှားမဖြစ်အောင် သေချာစွာ ထည့်သွင်းခြင်း
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync(url, content);
+                response.EnsureSuccessStatusCode();
+
+                return await response.Content.ReadAsStringAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                return null;
+            }
+        }
+    }
+    private async Task GetOtpProcess()
+    {
+        if (string.IsNullOrWhiteSpace(registerPhone))
+        {
+            errorMessage = "Please enter your phone number.";
+            return;
+        }
+
+        otpNo = GenerateOTPLogin(6);
+        var vv = await UpdateOTP(otpNo, registerPhone, "Clinic");
+
+        if (vv != null)
+        {
+            errorMessage = "OTP Request successful. Check with authority.";
+        }
+    }
+}

@@ -1,0 +1,71 @@
+﻿@page "/maindashboard"
+@using ClinicSystem.Web.Models
+@using ClinicSystem.Web.Services
+@inject DashboardService DashboardService
+
+<PageTitle>Dashboard - Clinic Report</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4">Clinic Income Dashboard</h2>
+
+    @if (isLoading)
+    {
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Data ဆွဲယူနေပါသည်၊ ခေတ္တစောင့်ပေးပါ...</p>
+    }
+    else if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            <strong>Error:</strong> @errorMessage
+        </div>
+    }
+    else if (incomeData?.Result != null)
+    {
+        <div class="card shadow-sm" style="max-width: 400px;">
+            <div class="card-body">
+                <h5 class="card-title text-muted">Income Summary</h5>
+                <h2 class="card-text text-primary">
+                    @incomeData.Result.Total.ToString("N0") <small>MMK</small>
+                </h2>
+                <p class="card-text"><small class="text-muted">Last updated: @DateTime.Now.ToString("g")</small></p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-warning">
+            Data မတွေ့ရှိပါ။ ကျေးဇူးပြု၍ စနစ်ကို ပြန်လည်စစ်ဆေးပါ။
+        </div>
+    }
+</div>
+
+@code {
+    private IncomeApiResponse? incomeData;
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            // API Service မှ Data ရယူခြင်း
+            incomeData = await DashboardService.GetIncomeReportAsync();
+
+            if (incomeData == null)
+            {
+                errorMessage = "API မှ တုံ့ပြန်မှု မရှိပါ။";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"API ချိတ်ဆက်မှုတွင် အမှားဖြစ်ပေါ်နေသည်: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

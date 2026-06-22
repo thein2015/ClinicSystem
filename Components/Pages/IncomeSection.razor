@@ -1,0 +1,600 @@
+﻿@page "/income-section"
+@using ClinicSystem.Web.Controller
+@using ClinicSystem.Web.Models
+@using ClinicSystem.Web.Services
+@using System.Text.Json
+@using System.Text
+@using static System.Net.WebRequestMethods
+@using System.Net.Http.Json
+@inject StockService StockService
+@inject HttpClient Http
+<div class="container mt-4">
+    <div class="card mb-3">
+        <div class="card-body d-flex justify-content-around">
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="mainModule" id="rbSales" checked @onchange='() => ChangeModule("Sales")'>
+                <label class="form-check-label fw-bold" for="rbSales">Sales Report</label>
+            </div>
+            <div class="form-check form-check-inline">
+                <input class="form-check-input" type="radio" name="mainModule" id="rbInventory" @onchange='() => ChangeModule("Inventory")'>
+                <label class="form-check-label fw-bold" for="rbInventory">Inventory Transaction</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h6 class="card-title fw-bold">All-Time Filters</h6>
+            <div class="d-flex flex-wrap">
+                @if (selectedModule == "Sales")
+                {
+                    @foreach (var filter in new[] { "All", "Treatment Fees", "Client POS", "Walk-In" })
+                    {
+                        <div class="form-check me-3">
+                            <input class="form-check-input" type="radio" name="allTime" id="@filter" @onclick='() => UpdateFilter(filter)'>
+                            <label class="form-check-label" for="@filter">@filter</label>
+                        </div>
+                    }
+                }
+                else
+                {
+                    @foreach (var filter in new[] { "All", "Expired Stock", "Damage Stock", "Usage Stock" })
+                    {
+                        <div class="form-check me-3">
+                            <input class="form-check-input" type="radio" name="allTime" id="@filter" @onclick='() => UpdateFilter(filter)'>
+                            <label class="form-check-label" for="@filter">@filter</label>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h6 class="card-title fw-bold">Date Range Evaluation</h6>
+            <div class="row g-2 align-items-center">
+                <div class="col-md-1">From:</div>
+                <div class="col-md-3"><input type="date" class="form-control" @bind="startDate" /></div>
+                <div class="col-md-2"><input type="time" class="form-control" @bind="startTime" /></div>
+                <div class="col-md-1">To:</div>
+                <div class="col-md-3"><input type="date" class="form-control" @bind="endDate" /></div>
+                <div class="col-md-2"><input type="time" class="form-control" @bind="endTime" /></div>
+            </div>
+            <div class="mt-3 text-end">
+                <button class="btn btn-success" @onclick="OnSearchReportClicked">Search</button>
+            </div>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger mt-2">@errorMessage</div>
+    }
+    <div class="row g-2">
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center shadow-sm">
+                <small class="text-muted">Sell Amount</small>
+                <div class="fw-bold fs-5">@sellAmount.ToString("N0") MMK</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center shadow-sm">
+                <small class="text-muted">Discount</small>
+                <div class="fw-bold fs-5 text-danger">@discount.ToString("N0") MMK</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center shadow-sm">
+                <small class="text-muted">Total</small>
+                <div class="fw-bold fs-5">@total.ToString("N0") MMK</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card p-3 text-center shadow-sm border-primary">
+                <small class="text-primary fw-bold">Grand Total</small>
+                <div class="fw-bold fs-5 text-primary">@grandTotal.ToString("N0") MMK</div>
+            </div>
+        </div>
+    </div>
+    @* <div class="row g-2">
+        <div class="col-6 col-md-3"><div class="card p-3 text-center shadow-sm"><small class="text-muted">Sell Amount</small><div class="fw-bold fs-5">@sellAmount.ToString("N0") MMK</div></div></div>
+        <div class="col-6 col-md-3"><div class="card p-3 text-center shadow-sm"><small class="text-muted">Discount</small><div class="fw-bold fs-5 text-danger">@discount.ToString("N0") MMK</div></div></div>
+        <div class="col-6 col-md-3"><div class="card p-3 text-center shadow-sm"><small class="text-muted">Total</small><div class="fw-bold fs-5">@total.ToString("N0") MMK</div></div></div>
+        <div class="col-6 col-md-3"><div class="card p-3 text-center shadow-sm border-primary"><small class="text-primary fw-bold">Grand Total</small><div class="fw-bold fs-5 text-primary">@grandTotal.ToString("N0") MMK</div></div></div>
+    </div> *@
+</div>
+
+@code {
+
+    private string selectedModule = "Sales";
+    private string selectedAllTimeFilter = "All";
+    private DateTime startDate = DateTime.Today;
+    private DateTime endDate = DateTime.Today;
+
+    // Changed to TimeOnly to fix the build errors
+    private TimeOnly startTime = new TimeOnly(5, 0, 0);
+    private TimeOnly endTime = new TimeOnly(23, 59, 0);
+
+    private double sellAmount, discount, total, grandTotal;
+    private string errorMessage;
+
+    private void ChangeModule(string module)
+    {
+        selectedModule = module;
+        selectedAllTimeFilter = "All";
+    }
+
+    private async Task UpdateFilter(string filter)
+    {
+        if (selectedModule == "Sales")
+        {
+            selectedAllTimeFilter = filter;
+            if (selectedAllTimeFilter == "All")
+                await FetchIncomeSummaryFromApiAsyncCall();
+            if (selectedAllTimeFilter == "Treatment Fees")
+                await FetchTreatmentSummaryFromApiAsync(DBController.Keyy);
+            if (selectedAllTimeFilter == "Client POS")
+                await ClientPosSummaryFromApiAsync(DBController.Keyy);
+            if (selectedAllTimeFilter == "Walk-In")
+                await WalkInSummaryFromApiAsync(DBController.Keyy);
+        }
+        else
+        {
+            selectedAllTimeFilter = filter;
+            await FunSearchInventoryTransAll(selectedAllTimeFilter);
+
+        }
+    }
+    private async Task FunSearchInventoryTransAll(string ipt)
+    {
+        errorMessage = null;
+
+        var payload = new
+        {
+            Category = ipt,
+            Keyy = DBController.Keyy
+        };
+
+        string apiUrl = $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/InventoryReportAll";
+
+        try
+        {
+            // Use the injected HttpClient (Http)
+            var response = await Http.PostAsJsonAsync(apiUrl, payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponseModel>();
+
+                if (apiResponse?.Status == 0 && apiResponse.Result != null)
+                {
+                    sellAmount = apiResponse.Result.Amount;
+                    discount = apiResponse.Result.Discount;
+                    total = apiResponse.Result.Total;
+                    grandTotal = apiResponse.Result.GrandTotal;
+                }
+                else
+                {
+                    errorMessage = apiResponse?.Msg ?? "No data found.";
+                }
+            }
+            else
+            {
+                errorMessage = $"Server Error: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Connection Error: {ex.Message}";
+        }
+
+        StateHasChanged(); // Essential to refresh your UI labels
+    }
+    private async Task WalkInSummaryFromApiAsync(string machineKey)
+    {
+        errorMessage = null;
+        string apiUrl = $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/WalkInSummary";
+        var payloadObject = new { Keyy = machineKey };
+
+        try
+        {
+            using HttpClient client = new HttpClient();
+
+            // Serialize using System.Text.Json
+            string jsonPayload = JsonSerializer.Serialize(payloadObject);
+            HttpContent content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+            // Execute POST
+            HttpResponseMessage response = await client.PostAsync(apiUrl, content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                string rawJson = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrWhiteSpace(rawJson)) return;
+
+                // Deserialize using System.Text.Json (Web-safe)
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var apiResponse = JsonSerializer.Deserialize<IncomeApiResponse>(rawJson, options);
+
+                if (apiResponse?.Status == 0 && apiResponse.Result != null)
+                {
+                    // Update component state variables
+                    sellAmount = apiResponse.Result.Amount;
+                    discount = apiResponse.Result.Discount;
+                    total = apiResponse.Result.Total;
+                    grandTotal = apiResponse.Result.GrandTotal;
+
+                    // Trigger re-render
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Walk-In Sync Error: {ex.Message}";
+            Console.WriteLine(errorMessage);
+        }
+    }
+    // 1. Inject the HttpClient in your Blazor component/page to reuse the connection
+    // Add this at the top of your file: @inject HttpClient Http
+
+    bool isSalesMode = false;
+    string targetCategory = "All";
+    private async Task OnSearchReportClicked2()
+    {
+        errorMessage = null;
+
+        // 1. Build Payload
+        // Ensure variable names (Category, StartTime, etc.) match your PHP $_POST/json_decode expectations
+        var payload = new
+        {
+            Category = targetCategory,
+            StartTime = startDate.ToString("yyyy-MM-dd") + " " + startTime.ToString("HH:mm:ss"),
+            EndTime = endDate.ToString("yyyy-MM-dd") + " " + endTime.ToString("HH:mm:ss"),
+            Keyy = DBController.Keyy
+        };
+
+        string apiUrl = isSalesMode
+            ? $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/IncomeReport"
+            : $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/InventoryReport";
+
+        try
+        {
+            // 2. POST request using System.Net.Http.Json
+            // This automatically handles serialization and content-type headers
+            var response = await Http.PostAsJsonAsync(apiUrl, payload);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var apiResponse = await response.Content.ReadFromJsonAsync<ApiResponse>();
+
+                if (apiResponse?.Status == 0 && apiResponse.Result != null)
+                {
+                    sellAmount = apiResponse.Result.Amount;
+                    discount = apiResponse.Result.Discount;
+                    total = apiResponse.Result.Total;
+                    grandTotal = apiResponse.Result.GrandTotal;
+                }
+                else
+                {
+                    errorMessage = apiResponse?.Msg ?? "No data found.";
+                }
+            }
+            else
+            {
+                errorMessage = $"Server error: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Connection Error: {ex.Message}";
+        }
+
+        // Tells Blazor to re-render the UI with the updated variables
+        StateHasChanged();
+    }
+    public class ApiResponse { public int Status { get; set; } public string Msg { get; set; } public ResultData Result { get; set; } }
+    public class ResultData { public double Amount { get; set; } public double Discount { get; set; } public double Total { get; set; } public double GrandTotal { get; set; } }
+
+    private async Task OnSearchReportClicked()
+    {
+        errorMessage = null;
+
+        var payload = new
+        {
+            Category = selectedAllTimeFilter,
+            StartTime = $"{startDate:yyyy-MM-dd} {startTime:HH:mm:ss}",
+            EndTime = $"{endDate:yyyy-MM-dd} {endTime:HH:mm:ss}",
+            Keyy = DBController.Keyy
+        };
+
+        string jsonPayload = System.Text.Json.JsonSerializer.Serialize(payload);
+        var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+
+        string apiUrl = selectedModule == "Sales"
+            ? $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/IncomeReport"
+            : $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/InventoryReport";
+
+        try
+        {
+            var response = await Http.PostAsync(apiUrl, content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Read ONLY ONCE
+                var jsonResponse = await response.Content.ReadFromJsonAsync<ApiResponseModel>();
+
+                if (jsonResponse?.Status == 0 && jsonResponse.Result != null)
+                {
+                    sellAmount = jsonResponse.Result.Amount;
+                    discount = jsonResponse.Result.Discount;
+                    total = jsonResponse.Result.Total;
+                    grandTotal = jsonResponse.Result.GrandTotal;
+                }
+                else
+                {
+                    errorMessage = jsonResponse?.Msg ?? "No data returned.";
+                }
+            }
+            else
+            {
+                errorMessage = $"Server Error: {response.StatusCode}";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error: {ex.Message}";
+        }
+
+        // Crucial for Blazor to update the UI
+        StateHasChanged();
+    }
+    private async Task OnSearchReportClicked1()
+    {
+        errorMessage = null;
+
+        // 2. Define the endpoint based on module
+        string apiUrl = selectedModule == "Sales"
+            ? $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/IncomeReport"
+            : $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/InventoryReport";
+
+        // 3. Structured Payload (Using a defined class is cleaner than an anonymous object)
+        var requestData = new
+        {
+            Category = selectedAllTimeFilter,
+            StartTime = startDate.ToString("yyyy-MM-dd") + " " + startTime.ToTimeSpan().ToString("hh\\:mm\\:ss"),
+            EndTime = endDate.ToString("yyyy-MM-dd") + " " + endTime.ToTimeSpan().ToString("hh\\:mm\\:ss"),
+            Keyy = DBController.Keyy
+        };
+
+        try
+        {
+            // 4. Use the injected HttpClient (Http) instead of 'new HttpClient()'
+            // This is a best practice in Blazor to prevent socket exhaustion
+            var response = await Http.PostAsJsonAsync(apiUrl, requestData);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = $"Server error: {response.StatusCode}";
+                return;
+            }
+
+            // 5. Direct Deserialization is more efficient than Document parsing
+            var jsonResponse = await response.Content.ReadFromJsonAsync<ApiResponseModel>();
+
+            if (jsonResponse?.Status == 0 && jsonResponse.Result != null)
+            {
+                sellAmount = jsonResponse.Result.Amount;
+                discount = jsonResponse.Result.Discount;
+                total = jsonResponse.Result.Total;
+                grandTotal = jsonResponse.Result.GrandTotal;
+            }
+            else
+            {
+                errorMessage = jsonResponse?.Msg ?? "No data returned.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Connection Error: {ex.Message}";
+        }
+    }
+
+    // 6. Helper Model for Clean Deserialization
+    public class ApiResponseModel
+    {
+        public int Status { get; set; }
+        public string Msg { get; set; }
+        public IncomeResult Result { get; set; }
+    }
+    // private async Task OnSearchReportClicked()
+    // {
+    //     Combined conversion to DateTime for API usage
+    //     DateTime start = startDate.Add(startTime.ToTimeSpan());
+    //     DateTime end = endDate.Add(endTime.ToTimeSpan());
+    //     await FetchIncomeSummaryFromApiAsyncCall();
+
+    //     errorMessage = null;
+
+    //     2. Build Payload
+    //     Note: You must format your StartDate/StartTime as needed by your API
+    //     var payload = new
+    //     {
+    //         Category = selectedAllTimeFilter, Use your consolidated variable
+    //         StartTime = $"{startDate:yyyy-MM-dd} {startTime.ToTimeSpan():hh\\:mm\\:ss}",
+    //         EndTime = $"{endDate:yyyy-MM-dd} {endTime.ToTimeSpan():hh\\:mm\\:ss}",
+    //         Keyy = DBController.Keyy
+    //     };
+
+    //     string apiUrl = selectedModule == "Sales"
+    //         ? $"https:smartlivingmyanmar.com/{DBController.Dbse}/api/get/IncomeReport"
+    //         : $"https:smartlivingmyanmar.com/{DBController.Dbse}/api/get/InventoryReport";
+
+    //     try
+    //     {
+    //         using HttpClient client = new HttpClient();
+    //         3. POST Request
+    //         var response = await client.PostAsJsonAsync(apiUrl, payload);
+
+    //         if (response.IsSuccessStatusCode)
+    //         {
+    //             var jsonResponse = await response.Content.ReadAsStringAsync();
+    //             using JsonDocument doc = JsonDocument.Parse(jsonResponse);
+    //             JsonElement root = doc.RootElement;
+
+    //             int status = root.TryGetProperty("status", out var st) ? st.GetInt32() : -1;
+
+    //             if (status == 0 && root.TryGetProperty("result", out var res))
+    //             {
+    //                 4. Update state variables (UI refreshes automatically)
+    //                 sellAmount = res.TryGetProperty("Amount", out var am) ? am.GetDouble() : 0;
+    //                 discount = res.TryGetProperty("Discount", out var dc) ? dc.GetDouble() : 0;
+    //                 total = res.TryGetProperty("Total", out var tt) ? tt.GetDouble() : 0;
+    //                 grandTotal = res.TryGetProperty("GrandTotal", out var gt) ? gt.GetDouble() : 0;
+    //             }
+    //             else
+    //             {
+    //                 errorMessage = root.TryGetProperty("msg", out var msg) ? msg.GetString() : "Unknown error";
+    //             }
+    //         }
+    //         else
+    //         {
+    //             errorMessage = $"Server error: {response.StatusCode}";
+    //         }
+    //     }
+    //     catch (Exception ex)
+    //     {
+    //         errorMessage = $"Connection Error: {ex.Message}";
+    //     }
+    // }
+    private async Task ClientPosSummaryFromApiAsync(string machineKey)
+    {
+        errorMessage = null;
+        string apiUrl = $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/ClientPosSummary";
+        var payloadObject = new { Keyy = machineKey };
+
+        try
+        {
+            using HttpClient client = new HttpClient();
+
+            // Serialize using System.Text.Json
+            string jsonPayload = JsonSerializer.Serialize(payloadObject);
+            HttpContent content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+            // Execute POST
+            HttpResponseMessage response = await client.PostAsync(apiUrl, content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                string rawJson = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrWhiteSpace(rawJson)) return;
+
+                // Deserialize using System.Text.Json
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var apiResponse = JsonSerializer.Deserialize<IncomeApiResponse>(rawJson, options);
+
+                if (apiResponse != null && apiResponse.Status == 0 && apiResponse.Result != null)
+                {
+                    // Assign to component variables (UI updates automatically)
+                    sellAmount = apiResponse.Result.Amount;
+                    discount = apiResponse.Result.Discount;
+                    total = apiResponse.Result.Total;
+                    grandTotal = apiResponse.Result.GrandTotal;
+
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Client POS Sync Error: {ex.Message}";
+            Console.WriteLine(errorMessage);
+        }
+    }
+    private async Task FetchTreatmentSummaryFromApiAsync(string machineKey)
+    {
+        // Point to your POST endpoint
+        string apiUrl = $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/TreatmentSummary";
+
+        // Build the payload
+        var payloadObject = new { Keyy = machineKey };
+
+        try
+        {
+            using HttpClient client = new HttpClient();
+
+            // Serialize using System.Text.Json
+            string jsonPayload = JsonSerializer.Serialize(payloadObject);
+            HttpContent content = new StringContent(jsonPayload, Encoding.UTF8, "application/json");
+
+            // Execute POST
+            HttpResponseMessage response = await client.PostAsync(apiUrl, content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                string rawJson = await response.Content.ReadAsStringAsync();
+                if (string.IsNullOrWhiteSpace(rawJson)) return;
+
+                // Deserialize using System.Text.Json
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var apiResponse = JsonSerializer.Deserialize<IncomeApiResponse>(rawJson, options);
+
+                if (apiResponse != null && apiResponse.Status == 0 && apiResponse.Result != null)
+                {
+                    // Blazor automatically handles UI updates—no need for MainThread.BeginInvokeOnMainThread
+                    sellAmount = apiResponse.Result.Amount;
+                    discount = apiResponse.Result.Discount;
+                    total = apiResponse.Result.Total;
+                    grandTotal = apiResponse.Result.GrandTotal;
+
+                    // Notify Blazor to refresh the UI
+                    StateHasChanged();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // Use console logging for web
+            Console.WriteLine($"Treatment Sync Error: {ex.Message}");
+        }
+    }
+
+    private async Task FetchIncomeSummaryFromApiAsyncCall() => await FetchIncomeSummaryFromApiAsync(DBController.Keyy);
+
+    // 1. Remove: using Newtonsoft.Json;
+    // 2. Add: using System.Text.Json;
+
+    private async Task FetchIncomeSummaryFromApiAsync(string machineKey)
+    {
+        errorMessage = null;
+        string apiUrl = $"https://smartlivingmyanmar.com/{DBController.Dbse}/api/get/IncomeSummary/{machineKey}";
+
+        try
+        {
+            using HttpClient client = new HttpClient();
+            var response = await client.GetAsync(apiUrl);
+            response.EnsureSuccessStatusCode();
+
+            string rawJson = await response.Content.ReadAsStringAsync();
+
+            // Use System.Text.Json instead of Newtonsoft
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var apiResponse = JsonSerializer.Deserialize<IncomeApiResponse>(rawJson, options);
+
+            if (apiResponse?.Status == 0 && apiResponse.Result != null)
+            {
+                sellAmount = apiResponse.Result.Amount;
+                discount = apiResponse.Result.Discount;
+                total = apiResponse.Result.Total;
+                grandTotal = apiResponse.Result.GrandTotal;
+            }
+            else { errorMessage = apiResponse?.Msg ?? "Failed to load data."; }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Network Error: {ex.Message}";
+        }
+        StateHasChanged();
+    }
+}

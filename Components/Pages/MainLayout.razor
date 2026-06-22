@@ -1,0 +1,17 @@
+﻿@inherits LayoutComponentBase
+@rendermode InteractiveServer
+
+<div class="layout-wrapper">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark px-3">
+        <div class="navbar-nav">
+            <NavLink class="nav-link" href="stock-section">Stock</NavLink>
+            <NavLink class="nav-link" href="patient-section">Waiting List</NavLink>
+            <NavLink class="nav-link" href="patient-search-list">Patient List</NavLink>
+            <NavLink class="nav-link" href="income-section">Income</NavLink>
+        </div>
+    </nav>
+
+    <main class="content p-4">
+        @Body
+    </main>
+</div>

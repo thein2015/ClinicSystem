@@ -1,0 +1,24 @@
+﻿@page "/dashboardpatient"
+@rendermode InteractiveServer
+
+<PageTitle>Patient Dashboard</PageTitle>
+
+<h3>Patient Dashboard</h3>
+
+<div class="card p-3">
+    <h5>Current Patient Stats</h5>
+    <p>Total Patients Registered: <strong>@PatientCount</strong></p>
+
+    <button class="btn btn-primary" @onclick="IncrementPatients">
+        Add New Patient
+    </button>
+</div>
+
+@code {
+    private int PatientCount = 0;
+
+    private void IncrementPatients()
+    {
+        PatientCount++;
+    }
+}
