@@ -2,12 +2,15 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /app
 
-# ဖိုင်တွေအားလုံးကို copy ကူးပါ
+# Repository တစ်ခုလုံးကို Docker ထဲသို့ ကူးယူပါ
 COPY . .
 
-# Solution file (.sln) ကို အသုံးပြုပြီး Build လုပ်ခြင်း
-# အကယ်၍ error ထပ်တက်ရင် အောက်က line ကိုသုံးပါ
-RUN dotnet publish -c Release -o /app/publish
+# Solution (.sln) ကို အသုံးပြုပြီး ပရောဂျက်အားလုံးကို Restore လုပ်ပါ
+RUN dotnet restore "ClinicSystem.sln"
+
+# Web project ကို publish လုပ်ပါ
+# လမ်းကြောင်းအမှန်အတိုင်း ပြင်ပေးပါ (ဥပမာ- ClinicSystem.Web/ClinicSystem.Web.csproj)
+RUN dotnet publish "ClinicSystem.Web/ClinicSystem.Web.csproj" -c Release -o /app/publish
 
 # Runtime Stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0
