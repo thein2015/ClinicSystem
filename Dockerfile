@@ -1,9 +1,10 @@
 # Build Stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+WORKDIR /app
 COPY . .
-RUN dotnet restore
-RUN dotnet publish -c Release -o /app/publish
+# .csproj ဖိုင်တွေအားလုံးကို restore လုပ်ပေးပါ
+RUN dotnet restore "ClinicSystem.Web.csproj"
+RUN dotnet publish "ClinicSystem.Web.csproj" -c Release -o /app/publish
 
 # Runtime Stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
