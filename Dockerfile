@@ -5,12 +5,12 @@ WORKDIR /app
 # Repository တစ်ခုလုံးကို Docker ထဲသို့ ကူးယူပါ
 COPY . .
 
-# Solution file (.sln) ကို အခြေခံပြီး Dependencies အားလုံးကို Restore လုပ်ပါ
-# အကယ်၍ သင့် Root မှာ .sln ဖိုင်မရှိရင် သူက သူ့ဘာသာ ရှာပါလိမ့်မယ်
-RUN dotnet restore
+# Solution (.sln) ဖိုင်မရှိသော်လည်း Project များအားလုံးကို အောင်မြင်စွာ Restore လုပ်နိုင်ရန်
+# Web Project ကို ဦးစားပေးပြီး Shared ကိုပါ ချိတ်ဆက်ပေးမည့် command
+RUN dotnet restore "ClinicSystem.Web.csproj"
 
-# Web project ကို publish လုပ်ပါ
-RUN dotnet publish ClinicSystem.Web/ClinicSystem.Web.csproj -c Release -o /app/publish
+# Web Project ကို Release mode ဖြင့် publish လုပ်ပါ
+RUN dotnet publish "ClinicSystem.Web.csproj" -c Release -o /app/publish
 
 # Runtime Stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
