@@ -2,14 +2,15 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /app
 
-# Repository တစ်ခုလုံးကို Docker ထဲသို့ ကူးယူပါ
+# ဖိုင်တွေအားလုံးကို ကူးယူပါ
 COPY . .
 
-# Solution (.sln) ကို အသုံးပြုပြီး ပရောဂျက်အားလုံးကို Restore လုပ်ပါ
-RUN dotnet restore "ClinicSystem.sln"
+# Solution ဖိုင်ကို မသုံးဘဲ Shared Project ကို အရင် Restore လုပ်ပါ
+# (အကယ်၍ Folder နာမည်မှားနေရင် အဲဒါကိုသာ ပြင်ပေးပါ)
+RUN dotnet restore "ClinicSystem.Shared/ClinicSystem.Shared.csproj"
+RUN dotnet restore "ClinicSystem.Web/ClinicSystem.Web.csproj"
 
-# Web project ကို publish လုပ်ပါ
-# လမ်းကြောင်းအမှန်အတိုင်း ပြင်ပေးပါ (ဥပမာ- ClinicSystem.Web/ClinicSystem.Web.csproj)
+# Build နှင့် Publish လုပ်ပါ
 RUN dotnet publish "ClinicSystem.Web/ClinicSystem.Web.csproj" -c Release -o /app/publish
 
 # Runtime Stage
